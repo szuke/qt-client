@@ -13,7 +13,7 @@ to be bound by its terms.</comment>
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>948</width>
+    <width>949</width>
     <height>980</height>
    </rect>
   </property>
@@ -639,7 +639,7 @@ to be bound by its terms.</comment>
      <item row="5" column="0" colspan="3">
       <widget class="QTabWidget" name="tabWidget">
        <property name="currentIndex">
-        <number>1</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="_detailTab">
         <attribute name="title">
