@@ -64,6 +64,11 @@
 			customer		|
 			custshipto		|
 			custtax			|
+			ediinfo         |
+			glaccount       |
+			invoice         |
+			invoiceline     |
+            item            |
 			journalentry		|
 			quote			|
 			quotecomment		|
@@ -132,6 +137,7 @@
 <!ATTLIST addresscomment	ignore 	(true|false)	'false' >
 
 <!ELEMENT cashreceipt ( customer_number?,
+						cashreceipt_number?,
                         funds_type?,
                         check_document_number?,
                         customer_name?,
@@ -142,11 +148,11 @@
                         distribution_date?,
                         apply_balance_as?,
                         sales_category?,
-                        notes?) >
+                        notes? ) >
+                        
 <!ATTLIST cashreceipt ignore (true|false) 'false' >                        
                         
-<!ELEMENT cashreceiptapply ( cashreceipt_number?,
-                             customer_number?, 
+<!ELEMENT cashreceiptapply ( customer_number?, 
                              funds_type?, 
                              check_document_number?, 
                              doc_type?,
@@ -244,7 +250,7 @@
 		      allow_free_form_shipto?,
 		      allow_free_form_billto?,
 		      preferred_selling_whs?,
-		      default_tax_authority,
+		      default_tax_zone,
 		      default_terms,
 		      balance_method?,
 		      default_discount?,
@@ -335,7 +341,7 @@
 		       sales_rep?,
 		       commission?,
 		       zone?,
-		       tax_authority?,
+		       tax_zone?,
 		       ship_via?,
 		       ship_form?,
 		       shipping_charges?,
@@ -347,8 +353,180 @@
 			ignore	(true|false)	'false'
 			key	CDATA	#FIXED	'customer_number, shipto_number' >
 
-<!ELEMENT custtax (customer_number, tax_authority, registration_number) >
+<!ELEMENT custtax (customer_number, tax_zone, registration_number) >
 <!ATTLIST custtax	ignore 	(true|false)	'false' >
+
+<!ELEMENT ediinfo (batchnumber, txnid, order_number, cust_po_number) >
+<!ATTLIST ediinfo	ignore 	(true|false)	'false' >
+
+<!ELEMENT glaccount ( company,
+			     profit_center,
+			     account_number,
+			     sub_account,
+			     description,
+			     ext_reference,
+			     type,
+			     sub_type,
+			     allow_posting_to_closed_periods,
+			     forward_update_trial_balances,
+			     notes
+			   ) >
+<!ATTLIST glaccount	ignore 	(true|false)	'false' >
+
+<!ELEMENT invoice (
+                 invoice_number,
+                 order_number?,
+                 invoice_date?,
+                 ship_date?,
+                 order_date?,
+                 sale_type?,
+                 sales_rep?,
+                 commission?,
+                 tax_zone?,
+                 terms?,
+                 customer_number?,
+                 billto_name?,
+                 billto_address1?,
+                 billto_address2?,
+                 billto_address3?,
+                 billto_city?,
+                 billto_state?,
+                 billto_postal_code?,
+                 billto_country?,
+                 billto_phone?,
+                 shipto_number?,
+                 shipto_name?,
+                 shipto_address1?,
+                 shipto_address2?,
+                 shipto_address3?,
+                 shipto_city?,
+                 shipto_state?,
+                 shipto_postal_code?,
+                 shipto_country?,
+                 shipto_shipzone?,
+                 shipto_phone?,
+                 po_number?,
+                 ship_via?,
+                 project_number?,
+                 fob?,
+                 misc_charge_description?,
+                 misc_charge?,
+                 misc_charge_account_number?,
+                 freight?,
+                 currency?,
+                 payment?,
+                 notes?
+) >
+
+<!ATTLIST invoice ignore 	(true|false)	'false'
+          key	CDATA	#FIXED	'invoice_number' >
+
+<!ELEMENT invoiceline (
+       invoice_number,
+       line_number,
+       item_number?,
+       misc_item_number?,
+       site?,
+       misc_item_description?,
+       sales_category?,
+       customer_part_number?,
+       qty_ordered?,
+       qty_billed?,
+       update_inventory?,
+       net_unit_price?,
+       tax_type?,
+       qty_uom?,
+       price_uom?,
+       notes?,
+       alternate_rev_account?
+) >
+
+<!ATTLIST invoiceline ignore (true|false) 'false'
+          key CDATA #FIXED 'invoice_number,line_number' >
+
+
+<!ELEMENT item (item_number,
+			 active?,
+       description1?,
+       description2?,
+       item_type,
+       maximum_desired_cost?,
+       class_code,
+       inventory_uom,
+       pick_list_item?,
+       fractional?,
+       configured?,
+       item_is_sold?,
+       product_category?,
+       exclusive?,
+       list_price?,
+       list_cost?,
+       list_price_uom,
+       upc_code?,
+       product_weight?,
+       packaging_weight?,
+       notes?,
+       ext_description?
+) >
+<!ATTLIST item	mode	(insert|update)	'insert'
+			ignore	(true|false)	'false'
+			key	CDATA	#FIXED	'item_number' >
+
+
+<!ELEMENT itemsite (item_number,
+       site,
+       active,
+       wo_supplied_at_site,
+       create_wos,
+       po_supplied_at_site,
+       create_prs,
+       create_soprs,
+       create_sopos,
+       dropship,
+       sold_from_site,
+       ranking,
+       cost_method,
+       control_method,
+       planner_code,
+       cost_category,
+       stocked,
+       abc_class,
+       allow_automatic_updates,
+       cycl_cnt_freq,
+       event_fence,
+       multiple_location_control,
+       location,
+       receive_location,
+       issue_location,
+       auto_distr_location,
+       auto_distr_receive_location,
+       auto_distr_issue_location,
+       user_defined_location,
+       location_comment,
+       disallow_blank_wip_locations,
+       enforce_order_parameters,
+       reorder_level,
+       order_up_to,
+       minimum_order,
+       maximum_order,
+       order_multiple,
+       enforce_on_manual_orders,
+       planning_system,
+       group_mps_mrp_orders,
+       first_group,
+       mps_time_fence,
+       lead_time,
+       safety_stock,
+       supplied_from_site,
+       notes,
+       perishable,
+       require_warranty,
+       auto_register
+) >
+<!ATTLIST itemsite	mode	(insert|update)	'insert'
+			ignore	(true|false)	'false'
+			key	CDATA	#FIXED	'item_number,site' >
+
 
 <!ELEMENT journalentry ( currency,
 			 amount,
@@ -360,13 +538,13 @@
 <!ATTLIST journalentry	ignore 	(true|false)	'false' >
 
 <!ELEMENT quote (  quote_number,
-		   warehouse?,
+		   site?,
 		   quote_date?,
 		   pack_date?,
 		   originated_by?,
 		   sales_rep?,
 		   commission?,
-		   tax_authority?,
+		   tax_zone?,
 		   terms?,
 		   project_number?,
 		   customer_number,
@@ -396,6 +574,7 @@
 		     misc_account_number,
 		     misc_charge)?,
 		   freight?,
+		   calculate_freight?,
 		   order_notes?,
 		   shipping_notes?,
 		   add_to_packing_list_batch?
@@ -448,15 +627,17 @@
 			   ) >
 <!ATTLIST quotelinecomment	ignore 	(true|false)	'false' >
 
-<!ELEMENT salesline	( order_number,
+<!ELEMENT salesline
+( order_number,
 			  line_number?,
 			  ( item_number | customer_pn |
 			    (item_number, customer_pn)
 			  ),
 			  substitute_for?,
-			  sold_from_whs?,
+			  sold_from_site?,
 			  status?,
 			  qty_ordered,
+			  qty_uom?,
 			  net_unit_price?,
 			  scheduled_date?,
 			  tax_type?,
@@ -487,13 +668,13 @@
 <!ATTLIST saleslinecomment	ignore 	(true|false)	'false' >
 
 <!ELEMENT salesorder (	order_number,
-			warehouse?,
+			site?,
 			order_date?,
 			pack_date?,
-			originated_by?,
+			sale_type?,
 			sales_rep?,
 			commission?,
-			tax_authority?,
+			tax_zone?,
 			terms?,
 			project_number?,
 			customer_number,
@@ -528,6 +709,7 @@
 			  misc_charge
 			)?,
 			freight?,
+  		    calculate_freight?,
 			order_notes?,
 			shipping_notes?,
 			add_to_packing_list_batch?
@@ -553,6 +735,7 @@
 <!ELEMENT addressline			(#PCDATA) >
 <!ELEMENT alternate			(#PCDATA) > <!-- telephone number -->
 <!ELEMENT amount			(#PCDATA) > <!-- money -->
+<!ELEMENT batchnumber	      (#PCDATA) >
 <!ELEMENT billing_contact_address1	(#PCDATA) >
 <!ELEMENT billing_contact_address2	(#PCDATA) >
 <!ELEMENT billing_contact_address3	(#PCDATA) >
@@ -617,7 +800,7 @@
 <!ELEMENT debit			(#PCDATA) > <!-- 00-00-00-00 -->
 <!ELEMENT default_currency	(#PCDATA) >
 <!ELEMENT default_discount	(#PCDATA) >
-<!ELEMENT default_tax_authority	(#PCDATA) >
+<!ELEMENT default_tax_zone	(#PCDATA) >
 <!ELEMENT default_terms		(#PCDATA) >
 <!ELEMENT discount_pct_from_list (#PCDATA) > <!-- Numeric -->
 <!ELEMENT dist_date		(#PCDATA) > <!-- PostgreSQL timestamp -->
@@ -630,6 +813,7 @@
 <!ELEMENT first			(#PCDATA) >
 <!ELEMENT fob			(#PCDATA) >
 <!ELEMENT freight		(#PCDATA) > <!-- Numeric -->
+<!ELEMENT calcuate_freight		(#PCDATA) > <!-- boolean -->
 <!ELEMENT general_notes		(#PCDATA) >
 <!ELEMENT honorific		(#PCDATA) >
 <!ELEMENT initials		(#PCDATA) >
@@ -669,6 +853,7 @@
 <!ELEMENT primary_contact_voice		(#PCDATA) > <!-- phone number -->
 <!ELEMENT project_number		(#PCDATA) > <!-- positive Integer -->
 <!ELEMENT qty_ordered	 		(#PCDATA) > <!-- Numeric -->
+<!ELEMENT qty_uom	 		(#PCDATA) >
 <!ELEMENT quote_date			(#PCDATA) > <!-- PostgreSQL timestamp -->
 <!ELEMENT quote_number			(#PCDATA) > <!-- positive Integer -->
 <!ELEMENT registration_number		(#PCDATA) >
@@ -711,16 +896,17 @@
 <!ELEMENT street_address2	(#PCDATA) >
 <!ELEMENT substitute_for 	(#PCDATA) >
 <!ELEMENT supplying_whs 	(#PCDATA) >
-<!ELEMENT tax_authority		(#PCDATA) >
+<!ELEMENT tax_zone		(#PCDATA) >
 <!ELEMENT tax_code		(#PCDATA) >
 <!ELEMENT tax_type		(#PCDATA) >
 <!ELEMENT terms			(#PCDATA) >
 <!ELEMENT text			(#PCDATA) >
+<!ELEMENT txnid         (#PCDATA) >
 <!ELEMENT type			(#PCDATA) > <!-- used different ways. could be generic text, could be limited (in api.account) to Organization or Individual -->
 <!ELEMENT username		(#PCDATA) >
 <!ELEMENT value		   	(#PCDATA) >
 <!ELEMENT voice			(#PCDATA) > <!-- telephone number -->
-<!ELEMENT warehouse		(#PCDATA) >
+<!ELEMENT site		(#PCDATA) >
 <!ELEMENT web			(#PCDATA) >
 <!ELEMENT zone			(#PCDATA) >
 
@@ -797,7 +983,7 @@
 <!ATTLIST debit			quote	(true|false)	'true' >
 <!ATTLIST default_currency	quote	(true|false)	'true' >
 <!ATTLIST default_discount	quote	(true|false)	'true' >
-<!ATTLIST default_tax_authority	quote	(true|false)	'true' >
+<!ATTLIST default_tax_zone	quote	(true|false)	'true' >
 <!ATTLIST default_terms		quote	(true|false)	'true' >
 <!ATTLIST discount_pct_from_list quote	(true|false)	'true' >
 <!ATTLIST dist_date		quote	(true|false)	'true' >
@@ -810,6 +996,7 @@
 <!ATTLIST first			quote	(true|false)	'true' >
 <!ATTLIST fob			quote	(true|false)	'true' >
 <!ATTLIST freight		quote	(true|false)	'true' >
+<!ATTLIST calculate_freight		quote	(true|false)	'true' >
 <!ATTLIST general_notes		quote	(true|false)	'true' >
 <!ATTLIST honorific		quote	(true|false)	'true' >
 <!ATTLIST initials		quote	(true|false)	'true' >
@@ -891,7 +1078,7 @@
 <!ATTLIST street_address2	quote	(true|false)	'true' >
 <!ATTLIST substitute_for 	quote	(true|false)	'true' >
 <!ATTLIST supplying_whs 	quote	(true|false)	'true' >
-<!ATTLIST tax_authority		quote	(true|false)	'true' >
+<!ATTLIST tax_zone		quote	(true|false)	'true' >
 <!ATTLIST tax_code		quote	(true|false)	'true' >
 <!ATTLIST tax_type		quote	(true|false)	'true' >
 <!ATTLIST terms			quote	(true|false)	'true' >
@@ -900,7 +1087,7 @@
 <!ATTLIST username		quote	(true|false)	'true' >
 <!ATTLIST value		   	quote	(true|false)	'true' >
 <!ATTLIST voice			quote	(true|false)	'true' >
-<!ATTLIST warehouse		quote	(true|false)	'true' >
+<!ATTLIST site		quote	(true|false)	'true' >
 <!ATTLIST web			quote	(true|false)	'true' >
 <!ATTLIST zone			quote	(true|false)	'true' >
 
@@ -962,8 +1149,8 @@
 <!ELEMENT hold_type	EMPTY	 >
 <!ATTLIST hold_type	value (None|Credit|Shipping|Packing)	'None' >
 
-<!ELEMENT originated_by	EMPTY >
-<!ATTLIST originated_by	value	(Customer|Internet|Sales_Rep.) #REQUIRED >
+<!ELEMENT sale_type	EMPTY	 >
+<!ATTLIST sale_type	value (CUST|INT|REP) 'INT' >
 
 <!ELEMENT ship_complete	EMPTY	 >
 <!ATTLIST ship_complete	value	(true|false)	'true' >
