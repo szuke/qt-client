@@ -62,7 +62,7 @@ QScriptEngine *ScriptableWidget::engine()
 
     setupQt(_engine);
     setupInclude(_engine);
-    setupScriptApi(_engine);
+    setupScriptApi(_engine, _x_preferences);
     setupWidgetsScriptApi(_engine, _guiClientInterface);
     QScriptValue mywidget = _engine->newQObject(w);
     _engine->globalObject().setProperty("mywidget",  mywidget);
@@ -91,7 +91,7 @@ void ScriptableWidget::loadScript(const QStringList &list)
 
     ParameterList params;
     params.append("jsonlist", "{" + pair.join(", ") + "}");
-    MetaSQLQuery mql = mqlLoad("scripts", "fetch");
+    MetaSQLQuery mql(_guiClientInterface->getMqlHash()->value("scripts", "fetch"));
     XSqlQuery q = mql.toQuery(params);
     while (q.next())
     {

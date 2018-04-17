@@ -97,6 +97,7 @@ project::project(QWidget* parent, const char* name, bool modal, Qt::WindowFlags 
   connect(_showPo, SIGNAL(toggled(bool)), this, SLOT(sFillTaskList()));
   connect(_showWo, SIGNAL(toggled(bool)), this, SLOT(sFillTaskList()));
   connect(_showIn, SIGNAL(toggled(bool)), this, SLOT(sFillTaskList()));
+  connect(_showCompleted, SIGNAL(toggled(bool)), this, SLOT(sFillTaskList()));
 
   connect(omfgThis, SIGNAL(salesOrdersUpdated(int, bool)), this, SLOT(sFillTaskList()));
   connect(omfgThis, SIGNAL(quotesUpdated(int, bool)), this, SLOT(sFillTaskList()));
@@ -187,27 +188,6 @@ enum SetResponse project::set(const ParameterList &pParams)
   if (valid)
     _assignedTo->setUsername(param.toString());
 
-  param = pParams.value("prj_id", &valid);
-  if (valid)
-  {
-    _prjid = param.toInt();
-    populate();
-    _charass->setId(_prjid);
-  }
-
-  param = pParams.value("crmacct_id", &valid);
-  if (valid)
-  {
-    _crmacct->setId(param.toInt());
-    _crmacct->setEnabled(false);
-  }
-
-  param = pParams.value("cntct_id", &valid);
-  if (valid)
-  {
-    _cntct->setId(param.toInt());
-  }
-
   param = pParams.value("mode", &valid);
   if (valid)
   {
@@ -275,6 +255,27 @@ enum SetResponse project::set(const ParameterList &pParams)
     }
     else if (param.toString() == "view")
       setViewMode();
+  }
+
+  param = pParams.value("prj_id", &valid);
+  if (valid)
+  {
+    _prjid = param.toInt();
+    populate();
+    _charass->setId(_prjid);
+  }
+
+  param = pParams.value("crmacct_id", &valid);
+  if (valid)
+  {
+    _crmacct->setId(param.toInt());
+    _crmacct->setEnabled(false);
+  }
+
+  param = pParams.value("cntct_id", &valid);
+  if (valid)
+  {
+    _cntct->setId(param.toInt());
   }
     
   return NoError;
@@ -455,7 +456,7 @@ void project::sPopulateMenu(QMenu *pMenu,  QTreeWidgetItem *selected)
 
 void project::populate()
 {
-  if (!_lock.acquire("prj", _prjid, AppLock::Interactive))
+  if (_mode == cEdit && !_lock.acquire("prj", _prjid, AppLock::Interactive))
     setViewMode();
 
   _close = false;
@@ -467,17 +468,27 @@ void project::populate()
 
     project *w = qobject_cast<project*>(widget);
 
-    if (w && w->id()==_prjid)
+    if (w && w != this && w->id()==_prjid)
     {
-      w->setFocus();
-
-      if (omfgThis->showTopLevel())
+      // detect "i'm my own grandpa"
+      QObject *p;
+      for (p = parent(); p && p != w ; p = p->parent())
+        ; // do nothing
+      if (p == w)
       {
-        w->raise();
-        w->activateWindow();
+        QMessageBox::warning(this, tr("Cannot Open Recursively"),
+                             tr("This project is already open and cannot be "
+                                "raised. Please close windows to get to it."));
+        _close = true;
+      } else if (p) {
+        w->setFocus();
+        if (omfgThis->showTopLevel())
+        {
+          w->raise();
+          w->activateWindow();
+        }
+        _close = true;
       }
-
-      _close = true;
       break;
     }
   }
@@ -896,16 +907,6 @@ void project::sFillTaskList()
   {
     return;
   }
-/* Not sure why the totals are zeroed out 
-   else
-  {
-    _totalHrBud->setDouble(0.0);
-    _totalHrAct->setDouble(0.0);
-    _totalHrBal->setDouble(0.0);
-    _totalExpBud->setDouble(0.0);
-    _totalExpAct->setDouble(0.0);
-    _totalExpBal->setDouble(0.0);
-  }  */
 
 // Populate Task List
   MetaSQLQuery mqltask = mqlLoad("orderActivityByProject", "detail");
@@ -936,6 +937,7 @@ void project::sFillTaskList()
   params.append("resolved",   tr("Resolved"));
   params.append("so",         tr("Sales Order"));
   params.append("sos",        tr("Sales Orders"));
+  params.append("total",      tr("Total"));
   params.append("unposted",   tr("Unposted"));
   params.append("unreleased", tr("Unreleased"));
   params.append("wo",         tr("Work Order"));
@@ -955,12 +957,17 @@ void project::sFillTaskList()
   if(_showIn->isChecked())
     params.append("showIn");
 
+  if (_showCompleted->isChecked())
+    params.append("showCompleted");
+
   if (! _privileges->check("ViewAllProjects") && ! _privileges->check("MaintainAllProjects"))
     params.append("owner_username", omfgThis->username());
 
   XSqlQuery qrytask = mqltask.toQuery(params);
 
   _prjtask->populate(qrytask, true);
+  (void)ErrorReporter::error(QtCriticalMsg, this, tr("Could not get Task Information"),
+                           qrytask, __FILE__, __LINE__);
   _prjtask->expandAll();
 }
 
@@ -1263,4 +1270,13 @@ void project::setVisible(bool visible)
     close();
   else
     XDialog::setVisible(visible);
+}
+
+void project::done(int result)
+{
+  if (!_lock.release())
+    ErrorReporter::error(QtCriticalMsg, this, tr("Locking Error"),
+                         _lock.lastError(), __FILE__, __LINE__);
+
+  XDialog::done(result);
 }

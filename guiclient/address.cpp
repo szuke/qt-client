@@ -1,7 +1,7 @@
 /*
  * This file is part of the xTuple ERP: PostBooks Edition, a free and
  * open source Enterprise Resource Planning software suite,
- * Copyright (c) 1999-2014 by OpenMFG LLC, d/b/a xTuple.
+ * Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
  * It is licensed to you under the Common Public Attribution License
  * version 1.0, the full text of which (including xTuple-specific Exhibits)
  * is available at www.xtuple.com/CPAL.  By using this software, you agree
@@ -71,15 +71,6 @@ enum SetResponse address::set(const ParameterList &pParams)
   QVariant param;
   bool     valid;
 
-  param = pParams.value("addr_id", &valid);
-  if (valid)
-  {
-    _captive = true;
-    _addr->setId(param.toInt());
-    sPopulate();
-    _charass->setId(_addr->id());
-  }
-
   param = pParams.value("mode", &valid);
   if (valid)
   {
@@ -105,6 +96,15 @@ enum SetResponse address::set(const ParameterList &pParams)
     }
     else if (param.toString() == "view")
       setViewMode();
+  }
+
+  param = pParams.value("addr_id", &valid);
+  if (valid)
+  {
+    _captive = true;
+    _addr->setId(param.toInt());
+    sPopulate();
+    _charass->setId(_addr->id());
   }
 
   return NoError;
@@ -136,26 +136,23 @@ void address::internalSave(AddressCluster::SaveFlags flag)
 {
   _addr->setNotes(_notes->toPlainText());
 
+  int oldId      = _addr->id();
   int saveResult = _addr->save(flag);
-  if (-2 == saveResult)
+  if (saveResult == -2)
   {
-    int answer = QMessageBox::question(this,
-		    tr("Saving Shared Address"),
-		    tr("There are multiple Contacts sharing this Address.\n"
-		       "If you save this Address, the Address for all "
-		       "of these Contacts will be changed. Would you like to "
-		       "save this Address?"),
-		    QMessageBox::No | QMessageBox::Default, QMessageBox::Yes);
-    if (QMessageBox::No == answer)
+    AddressCluster::SaveFlags answer = AddressCluster::askForSaveMode(_addr->id(), this);
+    if (answer == AddressCluster::CHECK)
       return;
-    saveResult = _addr->save(AddressCluster::CHANGEALL);
+    saveResult = _addr->save(answer);
   }
-  if (0 > saveResult)	// NOT else if
-  {
+  if (saveResult < 0)	// NOT else if
     ErrorReporter::error(QtCriticalMsg, this, tr("Error Saving Address"),
               tr("There was an error saving this address (%1).\n"
                  "Check the database server log for errors.") .arg(saveResult), __FILE__, __LINE__);
-  }
+  else if (saveResult != oldId)
+    QMessageBox::information(this, tr("Not Saved"),
+                             tr("This change was not saved because it would create a duplicate. "
+                                "Merge the two addresses instead."));
 }
 
 void address::reject()
@@ -180,7 +177,7 @@ void address::reject()
 
 void address::sPopulate()
 {
-  if (!_lock.acquire("addr", _addrid, AppLock::Interactive))
+  if (_mode == cEdit && !_lock.acquire("addr", _addrid, AppLock::Interactive))
     setViewMode();
 
   _close = false;
@@ -192,17 +189,27 @@ void address::sPopulate()
 
     address *w = qobject_cast<address*>(widget);
 
-    if (w && w->id()==_addrid)
+    if (w && w != this && w->id()==_addrid)
     {
-      w->setFocus();
-
-      if (omfgThis->showTopLevel())
+      // detect "i'm my own grandpa"
+      QObject *p;
+      for (p = parent(); p && p != w ; p = p->parent())
+        ; // do nothing
+      if (p == w)
       {
-        w->raise();
-        w->activateWindow();
+        QMessageBox::warning(this, tr("Cannot Open Recursively"),
+                             tr("This address is already open and cannot be "
+                                "raised. Please close windows to get to it."));
+        _close = true;
+      } else if (p) {
+        w->setFocus();
+        if (omfgThis->showTopLevel())
+        {
+          w->raise();
+          w->activateWindow();
+        }
+        _close = true;
       }
-
-      _close = true;
       break;
     }
   }
@@ -459,4 +466,13 @@ void address::setVisible(bool visible)
     close();
   else
     XDialog::setVisible(visible);
+}
+
+void address::done(int result)
+{
+  if (!_lock.release())
+    ErrorReporter::error(QtCriticalMsg, this, tr("Locking Error"),
+                         _lock.lastError(), __FILE__, __LINE__);
+
+  XDialog::done(result);
 }

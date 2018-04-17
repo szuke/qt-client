@@ -323,7 +323,7 @@ void todoItem::sSave()
 
 void todoItem::sPopulate()
 {
-  if (!_lock.acquire("todoitem", _todoitemid, AppLock::Interactive))
+  if (_mode == cEdit && !_lock.acquire("todoitem", _todoitemid, AppLock::Interactive))
     setViewMode();
 
   _close = false;
@@ -335,17 +335,27 @@ void todoItem::sPopulate()
 
     todoItem *w = qobject_cast<todoItem*>(widget);
 
-    if (w && w->id()==_todoitemid)
+    if (w && w != this && w->id()==_todoitemid)
     {
-      w->setFocus();
-
-      if (omfgThis->showTopLevel())
+      // detect "i'm my own grandpa"
+      QObject *p;
+      for (p = parent(); p && p != w ; p = p->parent())
+        ; // do nothing
+      if (p == w)
       {
-        w->raise();
-        w->activateWindow();
+        QMessageBox::warning(this, tr("Cannot Open Recursively"),
+                             tr("This todo is already open and cannot be "
+                                "raised. Please close windows to get to it."));
+        _close = true;
+      } else if (p) {
+        w->setFocus();
+        if (omfgThis->showTopLevel())
+        {
+          w->raise();
+          w->activateWindow();
+        }
+        _close = true;
       }
-
-      _close = true;
       break;
     }
   }
@@ -448,4 +458,13 @@ void todoItem::setVisible(bool visible)
     close();
   else
     XDialog::setVisible(visible);
+}
+
+void todoItem::done(int result)
+{
+  if (!_lock.release())
+    ErrorReporter::error(QtCriticalMsg, this, tr("Locking Error"),
+                         _lock.lastError(), __FILE__, __LINE__);
+
+  XDialog::done(result);
 }

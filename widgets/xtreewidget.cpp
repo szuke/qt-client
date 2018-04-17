@@ -982,7 +982,7 @@ QString XTreeWidgetItem::toString() const
 bool XTreeWidgetItem::operator<(const XTreeWidgetItem &other) const
 {
   bool returnVal = false;
-  bool sorted = false;
+  bool sorted    = false;
 
   QPair<int, Qt::SortOrder> sort;
   foreach (sort, ((XTreeWidget*)treeWidget())->sortColumnOrder())
@@ -993,6 +993,26 @@ bool XTreeWidgetItem::operator<(const XTreeWidgetItem &other) const
 
     QVariant v1 = data(sort.first, Xt::RawRole);
     QVariant v2 = other.data(sort.first, Xt::RawRole);
+
+    // bugs 17968 & 32496: sort strings according to user expectations AND preserve raw role [
+    bool ok1, ok2;
+    (void)v1.toString().toDouble(&ok1); // we want ok1 & ok2, not the numeric value
+    (void)v2.toString().toDouble(&ok2);
+
+    if (v1.type() == QVariant::String && ! ok1 && v2.type() == QVariant::String && ! ok2)
+    {
+      QVariant d1 = data(sort.first,       Qt::DisplayRole);
+      QVariant d2 = other.data(sort.first, Qt::DisplayRole);
+
+      (void)d1.toString().toDouble(&ok1);
+      (void)d2.toString().toDouble(&ok2);
+
+      if (d1.type() == QVariant::String && ! ok1 && d2.type() == QVariant::String && ! ok2)
+      {
+        v1 = d1;
+        v2 = d2;
+      }
+    } // ] end 17968/32496
 
     if (sorted || v1==v2)
       continue;
@@ -1031,12 +1051,11 @@ bool XTreeWidgetItem::operator<(const XTreeWidgetItem &other) const
 
       case QVariant::String:
         sorted = true;
-        bool ok;
         if (v1.toString().toDouble() == 0.0 && v2.toDouble() == 0.0)
           returnVal = (v1.toString() < v2.toString());
-        else if (v1.toString().toDouble() == 0.0 && v2.toDouble(&ok)) //v1 is string, v2 is number
+        else if (v1.toString().toDouble() == 0.0 && v2.toDouble(&ok2)) //v1 is string, v2 is number
           returnVal = false; //the number should always be treated as greater than a string
-        else if (v1.toDouble(&ok) && v2.toString().toDouble() == 0.0)
+        else if (v1.toDouble(&ok1) && v2.toString().toDouble() == 0.0)
           returnVal = true;
         else
           returnVal = (v1.toDouble() < v2.toDouble());
@@ -1083,6 +1102,48 @@ bool XTreeWidgetItem::operator>(const XTreeWidgetItem &other) const
   return !(this < other || this == other);
 }
 */
+void XTreeWidget::mergeSort(int low, int high){
+    int mid;
+    if(low<high){
+        mid=(low+high)/2;
+        // Split the data into two half.
+        mergeSort(low, mid);
+        mergeSort(mid+1, high);
+
+        // Merge them to get sorted output.
+        merge(low, high, mid);
+    }
+}
+void XTreeWidget::merge(int low, int high, int mid){
+
+    QList<QTreeWidgetItem *> temp;
+    int i = low, j = mid + 1;//i is for left-hand,j is for right-hand
+    int k = 0;//k is for the temporary array
+
+   while(i <= mid && j <=high){
+        XTreeWidgetItem *lhsItem = static_cast<XTreeWidgetItem *>(topLevelItem(i));
+        XTreeWidgetItem *rhsItem = static_cast<XTreeWidgetItem *>(topLevelItem(j));
+
+        if(*lhsItem < *rhsItem || *lhsItem == *rhsItem)
+            temp.insert(k++, static_cast<XTreeWidgetItem *>(topLevelItem(i++)->clone()));
+        else
+            temp.insert(k++, static_cast<XTreeWidgetItem *>(topLevelItem(j++)->clone()));
+    }
+    //rest elements of left-half
+    while(i <= mid)
+        temp.insert(k++, static_cast<XTreeWidgetItem *>(topLevelItem(i++)->clone()));
+    //rest elements of right-half
+    while(j <= high)
+        temp.insert(k++, static_cast<XTreeWidgetItem *>(topLevelItem(j++)->clone()));
+
+    //copy the mergered temporary array to the original array
+    for(k = 0, i = low; i <= high; ++i, ++k){
+        QTreeWidgetItem *item =  topLevelItem(i);
+        //XTreeWidgetItem *delItem = (XTreeWidgetItem*)item;
+        *item = *temp.at(k);
+
+    }
+}
 void XTreeWidget::sortItems(int column, Qt::SortOrder order)
 {
   // if old style then maintain backwards compatibility
@@ -1094,6 +1155,8 @@ void XTreeWidget::sortItems(int column, Qt::SortOrder order)
 
   for (int column=0; column<columnCount(); column++)
   {
+    if (!QRegExp("[\\d ][\\d ] ").exactMatch(headerItem()->text(column).left(3)))
+      headerItem()->setText(column, "   " + headerItem()->text(column));
     headerItem()->setIcon(column, QIcon());
     headerItem()->setText(column, "   " + headerItem()->text(column).mid(3));
   }
@@ -1127,6 +1190,10 @@ void XTreeWidget::sortItems(int column, Qt::SortOrder order)
   // simple insertion sort using binary search to find the right insertion pt
   QString totalrole("totalrole");
   int     itemcount      = topLevelItemCount();
+   
+#ifdef USENEWSORT
+  mergeSort(0,itemcount-1);
+#else
   XTreeWidgetItem *prev  = dynamic_cast<XTreeWidgetItem *>(topLevelItem(0));
   for (int i = 1; i < itemcount; i++)
   {
@@ -1191,7 +1258,7 @@ void XTreeWidget::sortItems(int column, Qt::SortOrder order)
     // can't reuse item because the thing in position i may have changed
     prev = static_cast<XTreeWidgetItem *>(topLevelItem(i));
   }
-
+#endif
   populateCalculatedColumns();
 
   setId(previd);

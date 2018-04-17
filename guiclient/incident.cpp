@@ -144,15 +144,6 @@ enum SetResponse incident::set(const ParameterList &pParams)
   QVariant param;
   bool     valid;
 
-  param = pParams.value("incdt_id", &valid);
-  if (valid)
-  {
-    _incdtid = param.toInt();
-    populate();
-    _lotserial->setItemId(_item->id());
-    _charass->setId(_incdtid);
-  }
-
   param = pParams.value("mode", &valid);
   if (valid)
   {
@@ -195,6 +186,15 @@ enum SetResponse incident::set(const ParameterList &pParams)
     }
     else if (param.toString() == "view")
       setViewMode();
+  }
+
+  param = pParams.value("incdt_id", &valid);
+  if (valid)
+  {
+    _incdtid = param.toInt();
+    populate();
+    _lotserial->setItemId(_item->id());
+    _charass->setId(_incdtid);
   }
 
   param = pParams.value("crmacct_id", &valid);
@@ -515,7 +515,7 @@ void incident::sFillHistoryList()
 
 void incident::populate()
 {
-  if (!_lock.acquire("incdt", _incdtid, AppLock::Interactive))
+  if (_mode == cEdit && !_lock.acquire("incdt", _incdtid, AppLock::Interactive))
     setViewMode();
 
   _close = false;
@@ -527,17 +527,27 @@ void incident::populate()
 
     incident *w = qobject_cast<incident*>(widget);
 
-    if (w && w->id()==_incdtid)
+    if (w && w != this && w->id()==_incdtid)
     {
-      w->setFocus();
-
-      if (omfgThis->showTopLevel())
+      // detect "i'm my own grandpa"
+      QObject *p;
+      for (p = parent(); p && p != w ; p = p->parent())
+        ; // do nothing
+      if (p == w)
       {
-        w->raise();
-        w->activateWindow();
+        QMessageBox::warning(this, tr("Cannot Open Recursively"),
+                             tr("This incident is already open and cannot be "
+                                "raised. Please close windows to get to it."));
+        _close = true;
+      } else if (p) {
+        w->setFocus();
+        if (omfgThis->showTopLevel())
+        {
+          w->raise();
+          w->activateWindow();
+        }
+        _close = true;
       }
-
-      _close = true;
       break;
     }
   }
@@ -889,4 +899,13 @@ void incident::setVisible(bool visible)
     close();
   else
     XDialog::setVisible(visible);
+}
+
+void incident::done(int result)
+{
+  if (!_lock.release())
+    ErrorReporter::error(QtCriticalMsg, this, tr("Locking Error"),
+                         _lock.lastError(), __FILE__, __LINE__);
+
+  XDialog::done(result);
 }

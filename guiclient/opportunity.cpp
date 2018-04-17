@@ -140,13 +140,6 @@ enum SetResponse opportunity::set(const ParameterList &pParams)
   QVariant param;
   bool     valid;
 
-  param = pParams.value("ophead_id", &valid);
-  if (valid)
-  {
-    _opheadid = param.toInt();
-    populate();
-  }
-
   param = pParams.value("mode", &valid);
   if (valid)
   {
@@ -194,6 +187,13 @@ enum SetResponse opportunity::set(const ParameterList &pParams)
     }
     else if (param.toString() == "view")
       setViewMode();
+  }
+
+  param = pParams.value("ophead_id", &valid);
+  if (valid)
+  {
+    _opheadid = param.toInt();
+    populate();
   }
 
   param = pParams.value("crmacct_id", &valid);
@@ -414,7 +414,7 @@ bool opportunity::save(bool partial)
 
 void opportunity::populate()
 { 
-  if (!_lock.acquire("ophead", _opheadid, AppLock::Interactive))
+  if (_mode == cEdit && !_lock.acquire("ophead", _opheadid, AppLock::Interactive))
     setViewMode();
 
   _close = false;
@@ -426,17 +426,27 @@ void opportunity::populate()
 
     opportunity *w = qobject_cast<opportunity*>(widget);
 
-    if (w && w->id()==_opheadid)
+    if (w && w != this && w->id()==_opheadid)
     {
-      w->setFocus();
-
-      if (omfgThis->showTopLevel())
+      // detect "i'm my own grandpa"
+      QObject *p;
+      for (p = parent(); p && p != w ; p = p->parent())
+        ; // do nothing
+      if (p == w)
       {
-        w->raise();
-        w->activateWindow();
+        QMessageBox::warning(this, tr("Cannot Open Recursively"),
+                             tr("This opportunity is already open and cannot be "
+                                "raised. Please close windows to get to it."));
+        _close = true;
+      } else if (p) {
+        w->setFocus();
+        if (omfgThis->showTopLevel())
+        {
+          w->raise();
+          w->activateWindow();
+        }
+        _close = true;
       }
-
-      _close = true;
       break;
     }
   }
@@ -879,7 +889,10 @@ void opportunity::sAttachQuote()
 {
   XSqlQuery opportunityAttachQuote;
   ParameterList params;
-  params.append("cust_id", _custid);
+  if (_custid > -1)
+    params.append("cust_id", _custid);
+  else
+    params.append("cust_id", _prospectid);
   params.append("openOnly", true);
   
   quoteList newdlg(this, "", true);
@@ -1224,4 +1237,13 @@ void opportunity::setVisible(bool visible)
     close();
   else
     XDialog::setVisible(visible);
+}
+
+void opportunity::done(int result)
+{
+  if (!_lock.release())
+    ErrorReporter::error(QtCriticalMsg, this, tr("Locking Error"),
+                         _lock.lastError(), __FILE__, __LINE__);
+
+  XDialog::done(result);
 }

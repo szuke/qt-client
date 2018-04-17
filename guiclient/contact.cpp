@@ -1,7 +1,7 @@
 /*
  * This file is part of the xTuple ERP: PostBooks Edition, a free and
  * open source Enterprise Resource Planning software suite,
- * Copyright (c) 1999-2017 by OpenMFG LLC, d/b/a xTuple.
+ * Copyright (c) 1999-2018 by OpenMFG LLC, d/b/a xTuple.
  * It is licensed to you under the Common Public Attribution License
  * version 1.0, the full text of which (including xTuple-specific Exhibits)
  * is available at www.xtuple.com/CPAL.  By using this software, you agree
@@ -274,6 +274,45 @@ enum SetResponse contact::set(const ParameterList &pParams)
   QVariant param;
   bool     valid;
 
+  param = pParams.value("mode", &valid);
+  if (valid)
+  {
+    if (param.toString() == "new")
+    {
+      _data->_mode = cNew;
+      XSqlQuery getq;
+      getq.exec("SELECT fetchNextNumber('ContactNumber') AS result;");
+      getq.first();
+      if (ErrorReporter::error(QtCriticalMsg, this, tr("Getting Number"),
+                               getq, __FILE__, __LINE__))
+        return UndefinedError;
+      _number->setText(getq.value("result").toString());
+      _contact->setNumber(_number->text());
+      _contact->setFirst("Contact" + QDateTime::currentDateTime().toString());
+      int cntctSaveResult = _contact->save(AddressCluster::CHANGEONE);
+      if (cntctSaveResult < 0)
+      {
+        ErrorReporter::error(QtCriticalMsg, this, tr("Saving Placeholder"),
+                             tr("<p>There was an error creating a new contact (%). "
+                                "Check the database server log for errors.")
+                             .arg(cntctSaveResult), __FILE__, __LINE__);
+        return UndefinedError;
+      }
+      _comments->setId(_contact->id());
+      _documents->setId(_contact->id());
+      _charass->setId(_contact->id());
+      _contact->setFirst("");
+      _contact->setOwnerUsername(omfgThis->username());
+      _tabWidget->setTabEnabled(_tabWidget->indexOf(_usesTab), false);
+    }
+    else if (param.toString() == "edit")
+    {
+      _data->_mode = cEdit;
+    }
+    else if (param.toString() == "view")
+      setViewMode();
+  }
+
   param = pParams.value("cntct_id", &valid);
   if (valid)
   {
@@ -316,45 +355,6 @@ enum SetResponse contact::set(const ParameterList &pParams)
   param = pParams.value("addr_country", &valid);
   if (valid)
     _contact->addressWidget()->setCountry(param.toString());
-
-  param = pParams.value("mode", &valid);
-  if (valid)
-  {
-    if (param.toString() == "new")
-    {
-      _data->_mode = cNew;
-      XSqlQuery getq;
-      getq.exec("SELECT fetchNextNumber('ContactNumber') AS result;");
-      getq.first();
-      if (ErrorReporter::error(QtCriticalMsg, this, tr("Getting Number"),
-                               getq, __FILE__, __LINE__))
-        return UndefinedError;
-      _number->setText(getq.value("result").toString());
-      _contact->setNumber(_number->text());
-      _contact->setFirst("Contact" + QDateTime::currentDateTime().toString());
-      int cntctSaveResult = _contact->save(AddressCluster::CHANGEONE);
-      if (cntctSaveResult < 0)
-      {
-        ErrorReporter::error(QtCriticalMsg, this, tr("Saving Placeholder"),
-                             tr("<p>There was an error creating a new contact (%). "
-                                "Check the database server log for errors.")
-                             .arg(cntctSaveResult), __FILE__, __LINE__);
-        return UndefinedError;
-      }
-      _comments->setId(_contact->id());
-      _documents->setId(_contact->id());
-      _charass->setId(_contact->id());
-      _contact->setFirst("");
-      _contact->setOwnerUsername(omfgThis->username());
-      _tabWidget->setTabEnabled(_tabWidget->indexOf(_usesTab), false);
-    }
-    else if (param.toString() == "edit")
-    {
-      _data->_mode = cEdit;
-    }
-    else if (param.toString() == "view")
-      setViewMode();
-  }
 
   return NoError;
 }
@@ -551,21 +551,10 @@ void contact::sSave()
   int saveResult = addr->save(AddressCluster::CHECK);
   if (-2 == saveResult)
   {
-    int answer = 2;     // Cancel
-    answer = QMessageBox::question(this, tr("Question Saving Address"),
-                    tr("<p>There are multiple Contacts sharing this Address. "
-                       "What would you like to do?"),
-                    tr("Change This One"),
-                    tr("Change Address for All"),
-                    tr("Cancel"),
-                    2, 2);
-
-    if (0 == answer)
-      saveResult = addr->save(AddressCluster::CHANGEONE);
-    else if (1 == answer)
-      saveResult = addr->save(AddressCluster::CHANGEALL);
-    else
+    AddressCluster::SaveFlags answer = AddressCluster::askForSaveMode(addr->id());
+    if (answer == AddressCluster::CHECK)
       return;
+    saveResult = addr->save(answer);
   }
   if (saveResult < 0)   // check from errors for CHECK and CHANGE* saves
   {
@@ -597,7 +586,7 @@ void contact::sSave()
 
 void contact::sPopulate()
 {
-  if (!_data->_lock.acquire("cntct", _cntctid, AppLock::Interactive))
+  if (_data->_mode == cEdit && !_data->_lock.acquire("cntct", _cntctid, AppLock::Interactive))
     setViewMode();
 
   _data->_close = false;
@@ -609,17 +598,27 @@ void contact::sPopulate()
 
     contact *w = qobject_cast<contact*>(widget);
 
-    if (w && w->id()==_cntctid)
+    if (w && w != this && w->id()==_cntctid)
     {
-      w->setFocus();
-
-      if (omfgThis->showTopLevel())
+      // detect "i'm my own grandpa"
+      QObject *p;
+      for (p = parent(); p && p != w ; p = p->parent())
+        ; // do nothing
+      if (p == w)
       {
-        w->raise();
-        w->activateWindow();
+        QMessageBox::warning(this, tr("Cannot Open Recursively"),
+                             tr("This contact is already open and cannot be "
+                                "raised. Please close windows to get to it."));
+        _data->_close = true;
+      } else if (p) {
+        w->setFocus();
+        if (omfgThis->showTopLevel())
+        {
+          w->raise();
+          w->activateWindow();
+        }
+        _data->_close = true;
       }
-
-      _data->_close = true;
       break;
     }
   }
@@ -1300,4 +1299,13 @@ void contact::setVisible(bool visible)
     close();
   else
     XDialog::setVisible(visible);
+}
+
+void contact::done(int result)
+{
+  if (!_data->_lock.release())
+    ErrorReporter::error(QtCriticalMsg, this, tr("Locking Error"),
+                         _data->_lock.lastError(), __FILE__, __LINE__);
+
+  XDialog::done(result);
 }
